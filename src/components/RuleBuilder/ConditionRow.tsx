@@ -14,10 +14,17 @@ export interface Condition {
   threshold: string | number;
   selectedList: string | null;
   filters: any[] | null;
+  transactionType: string | null;
+  referenceStage: {
+    stageNumber: number;
+    metric: "sum" | "avg" | "count" | "max" | "min";
+  } | null;
+  thresholdType: "literal" | "percentage" | "reference";
 }
 
 interface ConditionRowProps {
   condition: Condition;
+  availableStages: number[];
   onUpdate: (id: string, updates: Partial<Condition>) => void;
   onRemove: (id: string) => void;
 }
@@ -33,19 +40,31 @@ const aggregateFunctions = [
 const targetFields = [
   { value: "amount", label: "Amount", type: "numeric" },
   { value: "transaction_count", label: "Transaction Count", type: "numeric" },
+  { value: "transaction_type", label: "Transaction Type", type: "category" },
   { value: "pep_list", label: "PEP List", type: "list" },
   { value: "country", label: "Country", type: "category" },
   { value: "merchant", label: "Merchant", type: "text" },
+  { value: "merchant_category", label: "Merchant Category", type: "category" },
   { value: "customer_id", label: "Customer ID", type: "text" },
+  { value: "account_id", label: "Account ID", type: "text" },
+];
+
+const transactionTypes = [
+  { value: "deposit", label: "Deposit" },
+  { value: "withdrawal", label: "Withdrawal" },
+  { value: "transfer", label: "Transfer" },
 ];
 
 const operators = [
   { value: ">", label: "Greater than (>)" },
   { value: "<", label: "Less than (<)" },
+  { value: ">=", label: "Greater than or equal (≥)" },
+  { value: "<=", label: "Less than or equal (≤)" },
   { value: "=", label: "Equal to (=)" },
   { value: "!=", label: "Not equal to (!=)" },
   { value: "contains", label: "Contains" },
   { value: "not_contains", label: "Not contains" },
+  { value: "% of", label: "Percentage of (%)" },
 ];
 
 const availableLists = [
@@ -56,11 +75,13 @@ const availableLists = [
   { value: "sanctions", label: "Sanctions List" },
 ];
 
-export function ConditionRow({ condition, onUpdate, onRemove }: ConditionRowProps) {
+export function ConditionRow({ condition, availableStages, onUpdate, onRemove }: ConditionRowProps) {
   const selectedField = targetFields.find((f) => f.value === condition.targetField);
   const showTimeWindow = condition.aggregateFunction !== "none";
   const showListSelector = selectedField?.type === "list";
+  const showTransactionType = condition.targetField === "transaction_type";
   const isNumericField = selectedField?.type === "numeric";
+  const showThresholdTypeSelector = isNumericField;
 
   return (
     <Card className="p-6 relative border-border bg-card shadow-sm">
@@ -73,7 +94,7 @@ export function ConditionRow({ condition, onUpdate, onRemove }: ConditionRowProp
         <X className="h-4 w-4" />
       </Button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Aggregate Function */}
         <div className="space-y-2">
           <Label htmlFor={`aggregate-${condition.id}`}>Aggregate Function</Label>
@@ -164,14 +185,70 @@ export function ConditionRow({ condition, onUpdate, onRemove }: ConditionRowProp
           </Select>
         </div>
 
-        {/* Threshold - Dynamic based on field type */}
-        {!showListSelector && (
+        {/* Transaction Type - Conditional */}
+        {showTransactionType && (
           <div className="space-y-2">
-            <Label htmlFor={`threshold-${condition.id}`}>Threshold</Label>
+            <Label htmlFor={`txn-type-${condition.id}`}>Transaction Type</Label>
+            <Select
+              value={condition.transactionType ?? ""}
+              onValueChange={(value) => onUpdate(condition.id, { transactionType: value })}
+            >
+              <SelectTrigger id={`txn-type-${condition.id}`}>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                {transactionTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Threshold Type Selector */}
+        {showThresholdTypeSelector && !showListSelector && (
+          <div className="space-y-2">
+            <Label htmlFor={`threshold-type-${condition.id}`}>Threshold Type</Label>
+            <Select
+              value={condition.thresholdType ?? "literal"}
+              onValueChange={(value) =>
+                onUpdate(condition.id, {
+                  thresholdType: value as "literal" | "percentage" | "reference",
+                  threshold: "",
+                  referenceStage: value === "reference" ? condition.referenceStage : null,
+                })
+              }
+            >
+              <SelectTrigger id={`threshold-type-${condition.id}`}>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="literal">Literal Value</SelectItem>
+                <SelectItem value="percentage">Percentage</SelectItem>
+                <SelectItem value="reference">Reference Stage</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Threshold Input - Dynamic */}
+        {!showListSelector && condition.thresholdType !== "reference" && (
+          <div className="space-y-2">
+            <Label htmlFor={`threshold-${condition.id}`}>
+              {condition.thresholdType === "percentage" ? "Percentage (%)" : "Threshold"}
+            </Label>
             <Input
               id={`threshold-${condition.id}`}
               type={isNumericField ? "number" : "text"}
-              placeholder={isNumericField ? "e.g., 1000" : "e.g., keyword"}
+              placeholder={
+                condition.thresholdType === "percentage"
+                  ? "e.g., 50"
+                  : isNumericField
+                  ? "e.g., 500000"
+                  : "e.g., keyword"
+              }
               value={condition.threshold}
               onChange={(e) =>
                 onUpdate(condition.id, {
@@ -180,6 +257,62 @@ export function ConditionRow({ condition, onUpdate, onRemove }: ConditionRowProp
               }
             />
           </div>
+        )}
+
+        {/* Cross-Stage Reference */}
+        {condition.thresholdType === "reference" && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`ref-stage-${condition.id}`}>Reference Stage</Label>
+              <Select
+                value={condition.referenceStage?.stageNumber.toString() ?? ""}
+                onValueChange={(value) =>
+                  onUpdate(condition.id, {
+                    referenceStage: {
+                      stageNumber: parseInt(value),
+                      metric: condition.referenceStage?.metric ?? "sum",
+                    },
+                  })
+                }
+              >
+                <SelectTrigger id={`ref-stage-${condition.id}`}>
+                  <SelectValue placeholder="Select stage" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {availableStages.map((num) => (
+                    <SelectItem key={num} value={num.toString()}>
+                      Stage {num}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor={`ref-metric-${condition.id}`}>Metric</Label>
+              <Select
+                value={condition.referenceStage?.metric ?? "sum"}
+                onValueChange={(value) =>
+                  onUpdate(condition.id, {
+                    referenceStage: condition.referenceStage
+                      ? { ...condition.referenceStage, metric: value as any }
+                      : null,
+                  })
+                }
+              >
+                <SelectTrigger id={`ref-metric-${condition.id}`}>
+                  <SelectValue placeholder="Select metric" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="sum">SUM</SelectItem>
+                  <SelectItem value="avg">AVG</SelectItem>
+                  <SelectItem value="count">COUNT</SelectItem>
+                  <SelectItem value="max">MAX</SelectItem>
+                  <SelectItem value="min">MIN</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
         )}
 
         {/* List Selector - Conditional */}

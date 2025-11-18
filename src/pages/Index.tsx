@@ -6,55 +6,147 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { ConditionRow, type Condition } from "@/components/RuleBuilder/ConditionRow";
+import { StageCard, type Stage } from "@/components/RuleBuilder/StageCard";
+import { type Condition } from "@/components/RuleBuilder/ConditionRow";
 import { ListManager } from "@/components/RuleBuilder/ListManager";
 import { toast } from "sonner";
 
 const Index = () => {
   const [logicType, setLogicType] = useState<"AND" | "OR">("AND");
-  const [conditions, setConditions] = useState<Condition[]>([
+  const [stages, setStages] = useState<Stage[]>([
     {
       id: "1",
-      aggregateFunction: "none",
-      targetField: "",
-      timeWindow: null,
-      operator: "",
-      threshold: "",
-      selectedList: null,
-      filters: null,
+      stageNumber: 1,
+      dependsOnStage: null,
+      timeRelation: null,
+      timeWindowDays: null,
+      conditions: [
+        {
+          id: "c1",
+          aggregateFunction: "none",
+          targetField: "",
+          timeWindow: null,
+          operator: "",
+          threshold: "",
+          selectedList: null,
+          filters: null,
+          transactionType: null,
+          referenceStage: null,
+          thresholdType: "literal",
+        },
+      ],
     },
   ]);
 
-  const addCondition = () => {
-    const newCondition: Condition = {
+  const addStage = () => {
+    const newStage: Stage = {
       id: Date.now().toString(),
-      aggregateFunction: "none",
-      targetField: "",
-      timeWindow: null,
-      operator: "",
-      threshold: "",
-      selectedList: null,
-      filters: null,
+      stageNumber: stages.length + 1,
+      dependsOnStage: null,
+      timeRelation: null,
+      timeWindowDays: null,
+      conditions: [
+        {
+          id: `c${Date.now()}`,
+          aggregateFunction: "none",
+          targetField: "",
+          timeWindow: null,
+          operator: "",
+          threshold: "",
+          selectedList: null,
+          filters: null,
+          transactionType: null,
+          referenceStage: null,
+          thresholdType: "literal",
+        },
+      ],
     };
-    setConditions([...conditions, newCondition]);
+    setStages([...stages, newStage]);
   };
 
-  const updateCondition = (id: string, updates: Partial<Condition>) => {
-    setConditions(conditions.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+  const updateStage = (id: string, updates: Partial<Stage>) => {
+    setStages(stages.map((s) => (s.id === id ? { ...s, ...updates } : s)));
   };
 
-  const removeCondition = (id: string) => {
-    if (conditions.length > 1) {
-      setConditions(conditions.filter((c) => c.id !== id));
+  const removeStage = (id: string) => {
+    if (stages.length > 1) {
+      const newStages = stages.filter((s) => s.id !== id);
+      // Renumber stages
+      const renumbered = newStages.map((s, idx) => ({
+        ...s,
+        stageNumber: idx + 1,
+      }));
+      setStages(renumbered);
     } else {
-      toast.error("At least one condition is required");
+      toast.error("At least one stage is required");
     }
+  };
+
+  const addConditionToStage = (stageId: string) => {
+    setStages(
+      stages.map((stage) => {
+        if (stage.id === stageId) {
+          const newCondition: Condition = {
+            id: Date.now().toString(),
+            aggregateFunction: "none",
+            targetField: "",
+            timeWindow: null,
+            operator: "",
+            threshold: "",
+            selectedList: null,
+            filters: null,
+            transactionType: null,
+            referenceStage: null,
+            thresholdType: "literal",
+          };
+          return { ...stage, conditions: [...stage.conditions, newCondition] };
+        }
+        return stage;
+      })
+    );
+  };
+
+  const updateCondition = (stageId: string, conditionId: string, updates: Partial<Condition>) => {
+    setStages(
+      stages.map((stage) => {
+        if (stage.id === stageId) {
+          return {
+            ...stage,
+            conditions: stage.conditions.map((c) =>
+              c.id === conditionId ? { ...c, ...updates } : c
+            ),
+          };
+        }
+        return stage;
+      })
+    );
+  };
+
+  const removeCondition = (stageId: string, conditionId: string) => {
+    setStages(
+      stages.map((stage) => {
+        if (stage.id === stageId) {
+          if (stage.conditions.length > 1) {
+            return {
+              ...stage,
+              conditions: stage.conditions.filter((c) => c.id !== conditionId),
+            };
+          } else {
+            toast.error("At least one condition is required per stage");
+          }
+        }
+        return stage;
+      })
+    );
   };
 
   const getRuleObject = () => {
     return {
       logicType,
-      conditions: conditions.map(({ id, ...rest }) => rest),
+      stages: stages.map(({ id, ...stage }) => ({
+        ...stage,
+        conditions: stage.conditions.map(({ id, ...rest }) => rest),
+      })),
     };
   };
 
@@ -82,7 +174,7 @@ const Index = () => {
             <div className="space-y-2">
               <h1 className="text-4xl font-bold text-foreground">Dynamic Rule Builder</h1>
               <p className="text-lg text-muted-foreground">
-                Configure conditions, lists, thresholds, and parameters for transaction monitoring
+                Create multi-stage rules with sequential logic for AML transaction monitoring
               </p>
             </div>
 
@@ -116,31 +208,41 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            {/* Conditions */}
+            {/* Stages */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-semibold text-foreground">Conditions</h2>
+                  <h2 className="text-2xl font-semibold text-foreground">Rule Stages</h2>
                   <p className="text-sm text-muted-foreground">
-                    Define the criteria for monitoring transactions
+                    Define sequential conditions with time dependencies and cross-stage comparisons
                   </p>
                 </div>
-                <Button onClick={addCondition} className="gap-2">
+                <Button onClick={addStage} className="gap-2">
                   <Plus className="h-4 w-4" />
-                  Add Condition
+                  Add Stage
                 </Button>
               </div>
 
-              <ScrollArea className="h-[500px] pr-4">
-                <div className="space-y-4">
-                  {conditions.map((condition) => (
-                    <ConditionRow
-                      key={condition.id}
-                      condition={condition}
-                      onUpdate={updateCondition}
-                      onRemove={removeCondition}
-                    />
-                  ))}
+              <ScrollArea className="h-[600px] pr-4">
+                <div className="space-y-6">
+                  {stages.map((stage) => {
+                    const availableStages = stages
+                      .filter((s) => s.stageNumber < stage.stageNumber)
+                      .map((s) => s.stageNumber);
+                    
+                    return (
+                      <StageCard
+                        key={stage.id}
+                        stage={stage}
+                        availableStages={availableStages}
+                        onUpdate={updateStage}
+                        onRemove={removeStage}
+                        onAddCondition={addConditionToStage}
+                        onUpdateCondition={updateCondition}
+                        onRemoveCondition={removeCondition}
+                      />
+                    );
+                  })}
                 </div>
               </ScrollArea>
             </div>
