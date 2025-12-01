@@ -20,6 +20,12 @@ const Index = () => {
       dependsOnStage: null,
       timeRelation: null,
       timeWindowDays: null,
+      groupBy: null,
+      outputName: null,
+      outputMode: "aggregates",
+      correlationKeys: [],
+      filters: [],
+      stageTimeWindowDays: null,
       conditions: [
         {
           id: "c1",
@@ -45,6 +51,12 @@ const Index = () => {
       dependsOnStage: null,
       timeRelation: null,
       timeWindowDays: null,
+      groupBy: null,
+      outputName: null,
+      outputMode: "aggregates",
+      correlationKeys: [],
+      filters: [],
+      stageTimeWindowDays: null,
       conditions: [
         {
           id: `c${Date.now()}`,
