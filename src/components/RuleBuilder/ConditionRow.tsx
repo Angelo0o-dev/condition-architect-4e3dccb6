@@ -35,6 +35,9 @@ const aggregateFunctions = [
   { value: "sum", label: "Sum" },
   { value: "count", label: "Count" },
   { value: "mode", label: "Mode" },
+  { value: "countDistinct", label: "Count Distinct" },
+  { value: "countUnique", label: "Count Unique" },
+  { value: "distinctValues", label: "Distinct Values" },
 ];
 
 const targetFields = [
