@@ -8,11 +8,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { StageCard, type Stage } from "@/components/RuleBuilder/StageCard";
 import { type Condition } from "@/components/RuleBuilder/ConditionRow";
-import { ListManager } from "@/components/RuleBuilder/ListManager";
+import { ListManager, type ListItem } from "@/components/RuleBuilder/ListManager";
 import { toast } from "sonner";
 
 const Index = () => {
   const [logicType, setLogicType] = useState<"AND" | "OR">("AND");
+  const [lists, setLists] = useState<ListItem[]>([
+    { id: "1", name: "PEP List A", type: "PEP", entries: ["John Doe", "Jane Smith"], count: 2 },
+    { id: "2", name: "PEP List B", type: "PEP", entries: ["Robert Johnson"], count: 1 },
+    { id: "3", name: "Hawala Parties", type: "Watchlist", entries: ["ABC Trading", "XYZ Corp"], count: 2 },
+    { id: "4", name: "Sanctions List", type: "Sanctions", entries: ["Country A", "Country B", "Entity C"], count: 3 },
+  ]);
   const [stages, setStages] = useState<Stage[]>([
     {
       id: "1",
@@ -39,6 +45,7 @@ const Index = () => {
           transactionType: null,
           referenceStage: null,
           thresholdType: "literal",
+          keywordFilters: [],
         },
       ],
     },
@@ -70,6 +77,7 @@ const Index = () => {
           transactionType: null,
           referenceStage: null,
           thresholdType: "literal",
+          keywordFilters: [],
         },
       ],
     };
@@ -110,6 +118,7 @@ const Index = () => {
             transactionType: null,
             referenceStage: null,
             thresholdType: "literal",
+            keywordFilters: [],
           };
           return { ...stage, conditions: [...stage.conditions, newCondition] };
         }
@@ -241,12 +250,14 @@ const Index = () => {
                     const availableStages = stages
                       .filter((s) => s.stageNumber < stage.stageNumber)
                       .map((s) => s.stageNumber);
+                    const availableLists = lists.map((list) => ({ id: list.id, name: list.name }));
                     
                     return (
                       <StageCard
                         key={stage.id}
                         stage={stage}
                         availableStages={availableStages}
+                        availableLists={availableLists}
                         onUpdate={updateStage}
                         onRemove={removeStage}
                         onAddCondition={addConditionToStage}
@@ -292,7 +303,7 @@ const Index = () => {
 
         {/* Sidebar */}
         <aside className="w-96 border-l border-border bg-card p-6">
-          <ListManager />
+          <ListManager lists={lists} setLists={setLists} />
         </aside>
       </div>
     </div>

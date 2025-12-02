@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -20,11 +20,13 @@ export interface Condition {
     metric: "sum" | "avg" | "count" | "max" | "min";
   } | null;
   thresholdType: "literal" | "percentage" | "reference";
+  keywordFilters: Array<{ field: string; listId: string }>;
 }
 
 interface ConditionRowProps {
   condition: Condition;
   availableStages: number[];
+  availableLists: Array<{ id: string; name: string }>;
   onUpdate: (id: string, updates: Partial<Condition>) => void;
   onRemove: (id: string) => void;
 }
@@ -44,7 +46,7 @@ const targetFields = [
   { value: "amount", label: "Amount", type: "numeric" },
   { value: "transaction_count", label: "Transaction Count", type: "numeric" },
   { value: "transaction_type", label: "Transaction Type", type: "category" },
-  { value: "pep_list", label: "PEP List", type: "list" },
+  { value: "counterparty_name", label: "Counterparty Name", type: "text" },
   { value: "country", label: "Country", type: "category" },
   { value: "merchant", label: "Merchant", type: "text" },
   { value: "merchant_category", label: "Merchant Category", type: "category" },
@@ -70,21 +72,28 @@ const operators = [
   { value: "% of", label: "Percentage of (%)" },
 ];
 
-const availableLists = [
-  { value: "pep_a", label: "PEP List A" },
-  { value: "pep_b", label: "PEP List B" },
-  { value: "hawala", label: "Hawala Parties" },
-  { value: "watchlist", label: "Watchlist" },
-  { value: "sanctions", label: "Sanctions List" },
-];
-
-export function ConditionRow({ condition, availableStages, onUpdate, onRemove }: ConditionRowProps) {
+export function ConditionRow({ condition, availableStages, availableLists, onUpdate, onRemove }: ConditionRowProps) {
   const selectedField = targetFields.find((f) => f.value === condition.targetField);
   const showTimeWindow = condition.aggregateFunction !== "none";
-  const showListSelector = selectedField?.type === "list";
   const showTransactionType = condition.targetField === "transaction_type";
   const isNumericField = selectedField?.type === "numeric";
   const showThresholdTypeSelector = isNumericField;
+
+  const handleAddKeywordFilter = () => {
+    const newFilters = [...(condition.keywordFilters || []), { field: "", listId: "" }];
+    onUpdate(condition.id, { keywordFilters: newFilters });
+  };
+
+  const handleUpdateKeywordFilter = (index: number, updates: Partial<{ field: string; listId: string }>) => {
+    const newFilters = [...(condition.keywordFilters || [])];
+    newFilters[index] = { ...newFilters[index], ...updates };
+    onUpdate(condition.id, { keywordFilters: newFilters });
+  };
+
+  const handleRemoveKeywordFilter = (index: number) => {
+    const newFilters = condition.keywordFilters?.filter((_, i) => i !== index) || [];
+    onUpdate(condition.id, { keywordFilters: newFilters });
+  };
 
   return (
     <Card className="p-6 relative border-border bg-card shadow-sm">
@@ -211,7 +220,7 @@ export function ConditionRow({ condition, availableStages, onUpdate, onRemove }:
         )}
 
         {/* Threshold Type Selector */}
-        {showThresholdTypeSelector && !showListSelector && (
+        {showThresholdTypeSelector && (
           <div className="space-y-2">
             <Label htmlFor={`threshold-type-${condition.id}`}>Threshold Type</Label>
             <Select
@@ -237,7 +246,7 @@ export function ConditionRow({ condition, availableStages, onUpdate, onRemove }:
         )}
 
         {/* Threshold Input - Dynamic */}
-        {!showListSelector && condition.thresholdType !== "reference" && (
+        {condition.thresholdType !== "reference" && (
           <div className="space-y-2">
             <Label htmlFor={`threshold-${condition.id}`}>
               {condition.thresholdType === "percentage" ? "Percentage (%)" : "Threshold"}
@@ -318,25 +327,60 @@ export function ConditionRow({ condition, availableStages, onUpdate, onRemove }:
           </>
         )}
 
-        {/* List Selector - Conditional */}
-        {showListSelector && (
+      </div>
+
+      {/* Keyword Filters Section */}
+      <div className="mt-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">Keyword Filters (Check against Lists)</Label>
+          <Button onClick={handleAddKeywordFilter} size="sm" variant="outline" className="gap-2">
+            <Plus className="h-3 w-3" />
+            Add Filter
+          </Button>
+        </div>
+
+        {condition.keywordFilters && condition.keywordFilters.length > 0 && (
           <div className="space-y-2">
-            <Label htmlFor={`list-${condition.id}`}>Select List</Label>
-            <Select
-              value={condition.selectedList ?? ""}
-              onValueChange={(value) => onUpdate(condition.id, { selectedList: value })}
-            >
-              <SelectTrigger id={`list-${condition.id}`}>
-                <SelectValue placeholder="Choose a list" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover z-50">
-                {availableLists.map((list) => (
-                  <SelectItem key={list.value} value={list.value}>
-                    {list.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {condition.keywordFilters.map((filter, index) => (
+              <div key={index} className="flex gap-2 items-start p-3 bg-muted rounded-md">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Field</Label>
+                    <Input
+                      placeholder="e.g., counterparty_name"
+                      value={filter.field}
+                      onChange={(e) => handleUpdateKeywordFilter(index, { field: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Check Against List</Label>
+                    <Select
+                      value={filter.listId}
+                      onValueChange={(value) => handleUpdateKeywordFilter(index, { listId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select list" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {availableLists.map((list) => (
+                          <SelectItem key={list.id} value={list.id}>
+                            {list.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:text-destructive/80 mt-5"
+                  onClick={() => handleRemoveKeywordFilter(index)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
         )}
       </div>
