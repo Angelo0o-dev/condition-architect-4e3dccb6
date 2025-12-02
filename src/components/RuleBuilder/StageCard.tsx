@@ -27,6 +27,7 @@ export interface Stage {
 interface StageCardProps {
   stage: Stage;
   availableStages: number[];
+  availableLists: Array<{ id: string; name: string }>;
   onUpdate: (id: string, updates: Partial<Stage>) => void;
   onRemove: (id: string) => void;
   onAddCondition: (stageId: string) => void;
@@ -37,6 +38,7 @@ interface StageCardProps {
 export function StageCard({
   stage,
   availableStages,
+  availableLists,
   onUpdate,
   onRemove,
   onAddCondition,
@@ -290,6 +292,7 @@ export function StageCard({
               key={condition.id}
               condition={condition}
               availableStages={availableStages}
+              availableLists={availableLists}
               onUpdate={(id, updates) => onUpdateCondition(stage.id, id, updates)}
               onRemove={(id) => onRemoveCondition(stage.id, id)}
             />
