@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { StageCard, type Stage } from "@/components/RuleBuilder/StageCard";
-import { type Condition } from "@/components/RuleBuilder/ConditionRow";
-import { ListManager, type ListItem } from "@/components/RuleBuilder/ListManager";
+import { StageCard } from "@/components/RuleBuilder/StageCard";
+import { ListManager } from "@/components/RuleBuilder/ListManager";
 import { toast } from "sonner";
+import type { Stage, Condition, ListItem } from "@/components/RuleBuilder/types";
 
 const Index = () => {
   const [logicType, setLogicType] = useState<"AND" | "OR">("AND");
@@ -30,13 +30,13 @@ const Index = () => {
       outputName: null,
       outputMode: "aggregates",
       correlationKeys: [],
-      filters: [],
+      rowFilters: [],
       stageTimeWindowDays: null,
       conditions: [
         {
           id: "c1",
           aggregateFunction: "none",
-          targetField: "",
+          targetField: null,
           timeWindow: null,
           operator: "",
           threshold: "",
@@ -45,7 +45,6 @@ const Index = () => {
           transactionType: null,
           referenceStage: null,
           thresholdType: "literal",
-          keywordFilters: [],
         },
       ],
     },
@@ -62,13 +61,13 @@ const Index = () => {
       outputName: null,
       outputMode: "aggregates",
       correlationKeys: [],
-      filters: [],
+      rowFilters: [],
       stageTimeWindowDays: null,
       conditions: [
         {
           id: `c${Date.now()}`,
           aggregateFunction: "none",
-          targetField: "",
+          targetField: null,
           timeWindow: null,
           operator: "",
           threshold: "",
@@ -77,7 +76,6 @@ const Index = () => {
           transactionType: null,
           referenceStage: null,
           thresholdType: "literal",
-          keywordFilters: [],
         },
       ],
     };
@@ -91,7 +89,6 @@ const Index = () => {
   const removeStage = (id: string) => {
     if (stages.length > 1) {
       const newStages = stages.filter((s) => s.id !== id);
-      // Renumber stages
       const renumbered = newStages.map((s, idx) => ({
         ...s,
         stageNumber: idx + 1,
@@ -109,7 +106,7 @@ const Index = () => {
           const newCondition: Condition = {
             id: Date.now().toString(),
             aggregateFunction: "none",
-            targetField: "",
+            targetField: null,
             timeWindow: null,
             operator: "",
             threshold: "",
@@ -118,7 +115,6 @@ const Index = () => {
             transactionType: null,
             referenceStage: null,
             thresholdType: "literal",
-            keywordFilters: [],
           };
           return { ...stage, conditions: [...stage.conditions, newCondition] };
         }
@@ -167,6 +163,7 @@ const Index = () => {
       stages: stages.map(({ id, ...stage }) => ({
         ...stage,
         conditions: stage.conditions.map(({ id, ...rest }) => rest),
+        rowFilters: stage.rowFilters.map(({ id, ...rest }) => rest),
       })),
     };
   };
@@ -175,14 +172,12 @@ const Index = () => {
     const rule = getRuleObject();
     console.log("Saving rule:", rule);
     toast.success("Rule saved successfully");
-    // In a real app, this would send to backend
   };
 
   const handleRunRule = () => {
     const rule = getRuleObject();
     console.log("Running rule:", rule);
     toast.success("Rule execution started");
-    // In a real app, this would trigger rule execution
   };
 
   return (
