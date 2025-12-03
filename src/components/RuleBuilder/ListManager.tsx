@@ -8,14 +8,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import type { ListItem } from "./types";
 
-export interface ListItem {
-  id: string;
-  name: string;
-  type: string;
-  entries: string[];
-  count: number;
-}
+// Re-export for backward compatibility
+export type { ListItem } from "./types";
 
 interface ListManagerProps {
   lists: ListItem[];

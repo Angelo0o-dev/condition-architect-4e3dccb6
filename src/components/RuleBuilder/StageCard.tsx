@@ -1,28 +1,17 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ConditionRow, type Condition } from "./ConditionRow";
+import { ConditionRow } from "./ConditionRow";
+import { StageFilters } from "./StageFilters";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import type { Stage, Condition, Filter } from "./types";
 
-export interface Stage {
-  id: string;
-  stageNumber: number;
-  dependsOnStage: number | null;
-  timeRelation: "after" | "before" | "within" | null;
-  timeWindowDays: number | null;
-  conditions: Condition[];
-  groupBy: string | null;
-  outputName: string | null;
-  outputMode: "rows" | "aggregates" | "both" | null;
-  correlationKeys: string[];
-  filters: any[];
-  stageTimeWindowDays: number | null;
-}
+// Re-export types for backward compatibility
+export type { Stage, Condition, Filter } from "./types";
 
 interface StageCardProps {
   stage: Stage;
@@ -80,6 +69,30 @@ export function StageCard({
     });
   };
 
+  // Stage-level row filters handlers
+  const handleAddRowFilter = () => {
+    const newFilter: Filter = {
+      id: Date.now().toString(),
+      field: "",
+      op: "=",
+      value: null,
+    };
+    onUpdate(stage.id, {
+      rowFilters: [...stage.rowFilters, newFilter],
+    });
+  };
+
+  const handleUpdateRowFilter = (index: number, updates: Partial<Filter>) => {
+    const newFilters = [...stage.rowFilters];
+    newFilters[index] = { ...newFilters[index], ...updates };
+    onUpdate(stage.id, { rowFilters: newFilters });
+  };
+
+  const handleRemoveRowFilter = (index: number) => {
+    const newFilters = stage.rowFilters.filter((_, i) => i !== index);
+    onUpdate(stage.id, { rowFilters: newFilters });
+  };
+
   return (
     <Card className="border-2 border-primary/20 shadow-lg">
       <CardHeader className="bg-muted/30">
@@ -104,7 +117,7 @@ export function StageCard({
             <div className="space-y-2">
               <Label htmlFor={`groupby-${stage.id}`}>Group By</Label>
               <Select
-                value={stage.groupBy ?? "none"}
+                value={typeof stage.groupBy === "string" ? stage.groupBy : stage.groupBy?.[0] ?? "none"}
                 onValueChange={(value) =>
                   onUpdate(stage.id, {
                     groupBy: value === "none" ? null : value,
@@ -282,11 +295,23 @@ export function StageCard({
             </>
           )}
         </div>
+
+        <Separator className="my-4" />
+
+        {/* Stage-Level Row Filters */}
+        <StageFilters
+          filters={stage.rowFilters}
+          availableLists={availableLists}
+          onAddFilter={handleAddRowFilter}
+          onUpdateFilter={handleUpdateRowFilter}
+          onRemoveFilter={handleRemoveRowFilter}
+        />
       </CardHeader>
 
       <CardContent className="space-y-4 pt-6">
         {/* Conditions */}
         <div className="space-y-4">
+          <Label className="text-sm font-medium">Conditions</Label>
           {stage.conditions.map((condition) => (
             <ConditionRow
               key={condition.id}

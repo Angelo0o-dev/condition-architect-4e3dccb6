@@ -1,27 +1,16 @@
-import { X, Plus } from "lucide-react";
+import { X, Plus, Filter as FilterIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+import { FilterRow } from "./FilterRow";
+import type { Condition, Filter } from "./types";
 
-export interface Condition {
-  id: string;
-  aggregateFunction: string;
-  targetField: string;
-  timeWindow: number | null;
-  operator: string;
-  threshold: string | number;
-  selectedList: string | null;
-  filters: any[] | null;
-  transactionType: string | null;
-  referenceStage: {
-    stageNumber: number;
-    metric: "sum" | "avg" | "count" | "max" | "min";
-  } | null;
-  thresholdType: "literal" | "percentage" | "reference";
-  keywordFilters: Array<{ field: string; listId: string }>;
-}
+// Re-export for backward compatibility
+export type { Condition } from "./types";
 
 interface ConditionRowProps {
   condition: Condition;
@@ -36,6 +25,8 @@ const aggregateFunctions = [
   { value: "avg", label: "Average" },
   { value: "sum", label: "Sum" },
   { value: "count", label: "Count" },
+  { value: "max", label: "Max" },
+  { value: "min", label: "Min" },
   { value: "mode", label: "Mode" },
   { value: "countDistinct", label: "Count Distinct" },
   { value: "countUnique", label: "Count Unique" },
@@ -79,21 +70,32 @@ export function ConditionRow({ condition, availableStages, availableLists, onUpd
   const isNumericField = selectedField?.type === "numeric";
   const showThresholdTypeSelector = isNumericField;
 
-  const handleAddKeywordFilter = () => {
-    const newFilters = [...(condition.keywordFilters || []), { field: "", listId: "" }];
-    onUpdate(condition.id, { keywordFilters: newFilters });
+  // Condition-level filters handlers
+  const handleAddConditionFilter = () => {
+    const newFilter: Filter = {
+      id: Date.now().toString(),
+      field: "",
+      op: "=",
+      value: null,
+    };
+    const currentFilters = condition.filters || [];
+    onUpdate(condition.id, { filters: [...currentFilters, newFilter] });
   };
 
-  const handleUpdateKeywordFilter = (index: number, updates: Partial<{ field: string; listId: string }>) => {
-    const newFilters = [...(condition.keywordFilters || [])];
+  const handleUpdateConditionFilter = (index: number, updates: Partial<Filter>) => {
+    const currentFilters = condition.filters || [];
+    const newFilters = [...currentFilters];
     newFilters[index] = { ...newFilters[index], ...updates };
-    onUpdate(condition.id, { keywordFilters: newFilters });
+    onUpdate(condition.id, { filters: newFilters });
   };
 
-  const handleRemoveKeywordFilter = (index: number) => {
-    const newFilters = condition.keywordFilters?.filter((_, i) => i !== index) || [];
-    onUpdate(condition.id, { keywordFilters: newFilters });
+  const handleRemoveConditionFilter = (index: number) => {
+    const currentFilters = condition.filters || [];
+    const newFilters = currentFilters.filter((_, i) => i !== index);
+    onUpdate(condition.id, { filters: newFilters.length > 0 ? newFilters : null });
   };
+
+  const conditionFilters = condition.filters || [];
 
   return (
     <Card className="p-6 relative border-border bg-card shadow-sm">
@@ -114,7 +116,7 @@ export function ConditionRow({ condition, availableStages, availableLists, onUpd
             value={condition.aggregateFunction}
             onValueChange={(value) =>
               onUpdate(condition.id, {
-                aggregateFunction: value,
+                aggregateFunction: value as Condition["aggregateFunction"],
                 timeWindow: value === "none" ? null : condition.timeWindow,
               })
             }
@@ -155,7 +157,7 @@ export function ConditionRow({ condition, availableStages, availableLists, onUpd
         <div className="space-y-2">
           <Label htmlFor={`target-${condition.id}`}>Target Field</Label>
           <Select
-            value={condition.targetField}
+            value={condition.targetField ?? ""}
             onValueChange={(value) =>
               onUpdate(condition.id, {
                 targetField: value,
@@ -182,7 +184,7 @@ export function ConditionRow({ condition, availableStages, availableLists, onUpd
           <Label htmlFor={`operator-${condition.id}`}>Operator</Label>
           <Select
             value={condition.operator}
-            onValueChange={(value) => onUpdate(condition.id, { operator: value })}
+            onValueChange={(value) => onUpdate(condition.id, { operator: value as Condition["operator"] })}
           >
             <SelectTrigger id={`operator-${condition.id}`}>
               <SelectValue placeholder="Select operator" />
@@ -326,64 +328,44 @@ export function ConditionRow({ condition, availableStages, availableLists, onUpd
             </div>
           </>
         )}
-
       </div>
 
-      {/* Keyword Filters Section */}
-      <div className="mt-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Keyword Filters (Check against Lists)</Label>
-          <Button onClick={handleAddKeywordFilter} size="sm" variant="outline" className="gap-2">
-            <Plus className="h-3 w-3" />
-            Add Filter
+      {/* Condition-Level Filters Section */}
+      <Collapsible className="mt-4">
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="w-full justify-between gap-2 text-muted-foreground hover:text-foreground">
+            <div className="flex items-center gap-2">
+              <FilterIcon className="h-4 w-4" />
+              <span>Condition Filters ({conditionFilters.length})</span>
+            </div>
+            <ChevronDown className="h-4 w-4" />
           </Button>
-        </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-3 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Applies only to this metric — use when a particular condition needs extra narrowing.
+          </p>
+          
+          {conditionFilters.length > 0 && (
+            <div className="space-y-2">
+              {conditionFilters.map((filter, index) => (
+                <FilterRow
+                  key={filter.id}
+                  filter={filter}
+                  availableLists={availableLists}
+                  onUpdate={(updates) => handleUpdateConditionFilter(index, updates)}
+                  onRemove={() => handleRemoveConditionFilter(index)}
+                />
+              ))}
+            </div>
+          )}
 
-        {condition.keywordFilters && condition.keywordFilters.length > 0 && (
-          <div className="space-y-2">
-            {condition.keywordFilters.map((filter, index) => (
-              <div key={index} className="flex gap-2 items-start p-3 bg-muted rounded-md">
-                <div className="flex-1 grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Field</Label>
-                    <Input
-                      placeholder="e.g., counterparty_name"
-                      value={filter.field}
-                      onChange={(e) => handleUpdateKeywordFilter(index, { field: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Check Against List</Label>
-                    <Select
-                      value={filter.listId}
-                      onValueChange={(value) => handleUpdateKeywordFilter(index, { listId: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select list" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        {availableLists.map((list) => (
-                          <SelectItem key={list.id} value={list.id}>
-                            {list.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:text-destructive/80 mt-5"
-                  onClick={() => handleRemoveKeywordFilter(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+          <Button onClick={handleAddConditionFilter} size="sm" variant="outline" className="gap-2">
+            <Plus className="h-3 w-3" />
+            Add Condition Filter
+          </Button>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
